@@ -45,3 +45,29 @@ video#localVideo {
   }
 
 }
+
+
+#video-container {
+  display:block;
+  position:relative;
+}
+
+.captions {
+  border:1px solid #555;
+  position: absolute;
+  padding:5px;
+  width:275px;
+  height:20px;
+  background:black;
+  color:white;
+}
+
+#localCaptions {
+  bottom:30px;
+  left:10px;
+}
+
+#remoteCaptions {
+  bottom:30px;
+  right:10px;
+}

@@ -57,12 +57,93 @@ function getOtherPc(pc) {
   return (pc == pc1) ? pc2 : pc1;
 }
 
+var onCallEstablished = function(){ trace("No onCallEstablished callback assigned") };
+
 function gotStream(stream) {
   trace('Received local stream');
   // Call the polyfill wrapper to attach the media stream to this element.
   attachMediaStream(localVideo, stream);
   localStream = stream;
   callButton.disabled = false;
+
+  onCallEstablished = function() {
+
+    var localCaptions = document.getElementById('localCaptions');
+    var remoteCaptions = document.getElementById('remoteCaptions');
+
+
+    var dataChannelOptions = {
+      ordered: true, // do not guarantee order
+      maxRetransmitTime: 3000, // in milliseconds
+    };
+
+    var dataChannel =
+      pc1.createDataChannel("speechChannel", dataChannelOptions);
+
+    dataChannel.onerror = function (error) {
+      console.log("Data Channel Error:", error);
+    };
+
+    dataChannel.onmessage = function (event) {
+      console.log("Got Data Channel Message:", event.data);
+    };
+
+    dataChannel.onopen = function () {
+      dataChannel.send("-- Waiting for captions --");
+    };
+
+    dataChannel.onclose = function () {
+      console.log("The Data Channel is Closed");
+    };
+
+
+    pc2.ondatachannel = function receiveChannelCallback(event) {
+      trace('Receive Channel Callback');
+      receiveChannel = event.channel;
+      receiveChannel.onmessage = function (event) {
+        remoteCaptions.innerHTML = event.data;
+      };
+      // receiveChannel.onopen = onReceiveChannelStateChange;
+      //receiveChannel.onclose = onReceiveChannelStateChange;
+    }
+
+    // Speech setup.
+    var speechTrack = localStream.getAudioTracks()[0];
+    var sr = new webkitSpeechRecognition();
+    sr.audioTrack = speechTrack;
+
+    var final_transcript;
+
+
+    sr.onresult = function(event){
+       var interim_transcript = '';
+       if (typeof(event.results) == 'undefined') {
+          sr.stop();
+          return;
+       }
+
+       for (var i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final_transcript += event.results[i][0].transcript;
+            final_transcript += '\n';
+          } else {
+            interim_transcript += event.results[i][0].transcript;
+          }
+        }
+
+      console.log(interim_transcript);
+      localCaptions.innerHTML = interim_transcript;
+      dataChannel.send(interim_transcript);
+
+    }
+
+    sr.interimResults = true;
+    sr.continuous = true;
+    sr.start();
+    console.info("Started speech reco");
+
+  }
+
 }
 
 function start() {
@@ -99,6 +180,8 @@ function call() {
   pc1.oniceconnectionstatechange = function(e) { onIceStateChange(pc1, e) };
   pc2.oniceconnectionstatechange = function(e) { onIceStateChange(pc2, e) };
   pc2.onaddstream = gotRemoteStream;
+
+  onCallEstablished();
 
   pc1.addStream(localStream);
   trace('Added local stream to pc1');
